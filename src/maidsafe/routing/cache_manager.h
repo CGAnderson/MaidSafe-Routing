@@ -35,8 +35,7 @@ class CacheManager {
   void InitialiseFunctors(MessageAndCachingFunctors message_and_caching_functors);
   void InitialiseFunctors(TypedMessageAndCachingFunctor typed_message_and_caching_functors);
   void AddToCache(const protobuf::Message& message);
-  void HandleGetFromCache(protobuf::Message& message);
-  bool IsInCache(const protobuf::Message& message);
+  bool HandleGetFromCache(protobuf::Message& message);
 
  private:
   CacheManager(const CacheManager&);
@@ -44,8 +43,8 @@ class CacheManager {
   CacheManager& operator=(const CacheManager&);
 
   void TypedMessageAddtoCache(const protobuf::Message& message);
-  void TypedMessageHandleGetFromCache(protobuf::Message& message);
-  bool TypedMessageIsInCache(const protobuf::Message& message);
+  bool TypedMessageHandleGetFromCache(protobuf::Message& message);
+
 
   const NodeId kNodeId_;
   NetworkUtils& network_;

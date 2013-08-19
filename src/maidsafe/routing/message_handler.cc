@@ -361,8 +361,8 @@ void MessageHandler::HandleMessage(protobuf::Message& message) {
   // Decrement hops_to_live
   message.set_hops_to_live(message.hops_to_live() - 1);
 
-  if (IsValidCacheableGet(message))
-    return HandleCacheLookup(message);  // forwarding message is done by cache manager
+  if (IsValidCacheableGet(message) && HandleCacheLookup(message))
+    return;  // forwarding message is done by cache manager or vault
   if (IsValidCacheablePut(message))
     StoreCacheCopy(message);  //  Upper layer should take this on seperate thread
 
@@ -644,10 +644,10 @@ void MessageHandler::set_request_public_key_functor(
   service_->set_request_public_key_functor(request_public_key_functor);
 }
 
-void MessageHandler::HandleCacheLookup(protobuf::Message& message) {
+bool MessageHandler::HandleCacheLookup(protobuf::Message& message) {
   assert(!routing_table_.client_mode());
   assert(IsCacheableGet(message));
-  cache_manager_->HandleGetFromCache(message);
+  return cache_manager_->HandleGetFromCache(message);
 }
 
 void MessageHandler::StoreCacheCopy(const protobuf::Message& message) {
@@ -656,15 +656,10 @@ void MessageHandler::StoreCacheCopy(const protobuf::Message& message) {
   cache_manager_->AddToCache(message);
 }
 
-bool MessageHandler::CheckCacheData(const protobuf::Message& message) {
-  assert(IsRequest(message));
-  return cache_manager_->IsInCache(message);
-}
-
 bool MessageHandler::IsValidCacheableGet(const protobuf::Message& message) {
   // TODO(Prakash): need to differentiate between typed and un typed api
   return (IsCacheableGet(message) && IsNodeLevelMessage(message) && Parameters::caching &&
-          !routing_table_.client_mode() && CheckCacheData(message));
+          !routing_table_.client_mode());
 }
 
 bool MessageHandler::IsValidCacheablePut(const protobuf::Message& message) {

@@ -13,6 +13,8 @@ implied. See the License for the specific language governing permissions and lim
 License.
 */
 
+#include <future>
+
 #include "maidsafe/routing/cache_manager.h"
 
 #include "maidsafe/routing/network_utils.h"
@@ -76,38 +78,12 @@ void CacheManager::TypedMessageAddtoCache(const protobuf::Message& message) {
   }
 }
 
-bool CacheManager::IsInCache(const protobuf::Message& message) {
-// TODO(Mahmoud): Check the parameter is valid.
-  if (message_and_caching_functors_.have_cache_data)
-    return message_and_caching_functors_.have_cache_data(message.data(0));
-  return TypedMessageIsInCache(message);
-}
-
-bool CacheManager::TypedMessageIsInCache(const protobuf::Message& message) {
-  if ((!message.has_group_source() && !message.has_group_destination()) &&
-      typed_message_and_caching_functors_.single_to_single.get_cache_data) {
-  return typed_message_and_caching_functors_.single_to_single.get_cache_data(
-             CreateSingleToSingleMessage(message));
-  } else if ((!message.has_group_source() && message.has_group_destination()) &&
-              typed_message_and_caching_functors_.single_to_group.get_cache_data) {
-    return typed_message_and_caching_functors_.single_to_group.get_cache_data(
-               CreateSingleToGroupMessage(message));
-  } else if ((message.has_group_source() && !message.has_group_destination()) &&
-                typed_message_and_caching_functors_.group_to_single.get_cache_data) {
-    return typed_message_and_caching_functors_.group_to_single.get_cache_data(
-               CreateGroupToSingleMessage(message));
-  } else if ((message.has_group_source() && message.has_group_destination()) &&
-                typed_message_and_caching_functors_.group_to_group.get_cache_data) {
-    return typed_message_and_caching_functors_.group_to_group.get_cache_data(
-               CreateGroupToGroupMessage(message));
-  }
-  return false;
-}
-
 // FIXME(Prakash)
-void CacheManager::HandleGetFromCache(protobuf::Message& message) {
+bool CacheManager::HandleGetFromCache(protobuf::Message& message) {
   assert(IsRequest(message));
   assert(IsCacheableGet(message));
+  auto cache_hit(std::make_shared<std::promise<bool>>());
+  auto future(cache_hit->get_future());
   assert(kNodeId_.string() != message.source_id());
   if (message_and_caching_functors_.message_received) {
     if (IsRequest(message)) {
@@ -118,9 +94,11 @@ void CacheManager::HandleGetFromCache(protobuf::Message& message) {
       ReplyFunctor response_functor = [=](const std::string& reply_message) {
           if (reply_message.empty()) {
             LOG(kVerbose) << "No cache available, passing on the original request";
-            return network_.SendToClosestNode(message);
+            //return network_.SendToClosestNode(message);
+            cache_hit->set_value(false);
           }
 
+          cache_hit->set_value(true);
           //  Responding with cached response
           protobuf::Message message_out;
           message_out.set_request(false);
@@ -154,28 +132,30 @@ void CacheManager::HandleGetFromCache(protobuf::Message& message) {
         message_and_caching_functors_.message_received(message.data(0), true, response_functor);
     }
   } else {
-    TypedMessageHandleGetFromCache(message);
+    return TypedMessageHandleGetFromCache(message);
   }
+  return future.wait_for(std::chrono::seconds(10)) == std::future_status::ready;
 }
 
-void CacheManager::TypedMessageHandleGetFromCache(protobuf::Message& message) {
+bool CacheManager::TypedMessageHandleGetFromCache(protobuf::Message& message) {
   if ((!message.has_group_source() && !message.has_group_destination()) &&
-      typed_message_and_caching_functors_.single_to_single.message_received) {
-   typed_message_and_caching_functors_.single_to_single.message_received(
-       CreateSingleToSingleMessage(message));
+      typed_message_and_caching_functors_.single_to_single.get_cache_data) {
+     return typed_message_and_caching_functors_.single_to_single.get_cache_data(
+                CreateSingleToSingleMessage(message));
   } else if ((!message.has_group_source() && message.has_group_destination()) &&
-              typed_message_and_caching_functors_.single_to_group.message_received) {
-    typed_message_and_caching_functors_.single_to_group.message_received(
-        CreateSingleToGroupMessage(message));
+              typed_message_and_caching_functors_.single_to_group.get_cache_data) {
+      return typed_message_and_caching_functors_.single_to_group.get_cache_data(
+                 CreateSingleToGroupMessage(message));
   } else if ((message.has_group_source() && !message.has_group_destination()) &&
-                typed_message_and_caching_functors_.group_to_single.message_received) {
-    typed_message_and_caching_functors_.group_to_single.message_received(
-        CreateGroupToSingleMessage(message));
+                typed_message_and_caching_functors_.group_to_single.get_cache_data) {
+      return typed_message_and_caching_functors_.group_to_single.get_cache_data(
+                 CreateGroupToSingleMessage(message));
   } else if ((message.has_group_source() && message.has_group_destination()) &&
-                typed_message_and_caching_functors_.group_to_group.message_received) {
-    typed_message_and_caching_functors_.group_to_group.message_received(
-        CreateGroupToGroupMessage(message));
+                typed_message_and_caching_functors_.group_to_group.get_cache_data) {
+      return typed_message_and_caching_functors_.group_to_group.get_cache_data(
+                 CreateGroupToGroupMessage(message));
   }
+  return false;
 }
 
 }  // namespace routing

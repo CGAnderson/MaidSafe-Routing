@@ -91,7 +91,6 @@ class MessageHandler {
   MessageHandler(const MessageHandler&);
   MessageHandler(const MessageHandler&&);
   MessageHandler& operator=(const MessageHandler&);
-  bool CheckCacheData(const protobuf::Message& message);
   void HandleRoutingMessage(protobuf::Message& message);
   void HandleNodeLevelMessageForThisNode(protobuf::Message& message);
   void HandleMessageForThisNode(protobuf::Message& message);
@@ -108,7 +107,7 @@ class MessageHandler {
   void HandleMessageForNonRoutingNodes(protobuf::Message& message);
   void HandleDirectRelayRequestMessageAsClosestNode(protobuf::Message& message);
   void HandleGroupRelayRequestMessageAsClosestNode(protobuf::Message& message);
-  void HandleCacheLookup(protobuf::Message& message);
+  bool HandleCacheLookup(protobuf::Message& message);
   void StoreCacheCopy(const protobuf::Message& message);
   bool IsValidCacheableGet(const protobuf::Message& message);
   bool IsValidCacheablePut(const protobuf::Message& message);
