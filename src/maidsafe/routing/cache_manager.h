@@ -30,22 +30,27 @@ class NetworkUtils;
 
 class CacheManager {
  public:
-  CacheManager(const NodeId& node_id, NetworkUtils &network);
+  CacheManager(const NodeId& node_id, NetworkUtils& network);
 
-  void InitialiseFunctors(MessageReceivedFunctor message_received_functor,
-                          StoreCacheDataFunctor store_cache_data);
+  void InitialiseFunctors(MessageAndCachingFunctors message_and_caching_functors);
+  void InitialiseFunctors(TypedMessageAndCachingFunctor typed_message_and_caching_functors);
   void AddToCache(const protobuf::Message& message);
   void HandleGetFromCache(protobuf::Message& message);
+  bool IsInCache(const protobuf::Message& message);
 
  private:
   CacheManager(const CacheManager&);
   CacheManager(const CacheManager&&);
   CacheManager& operator=(const CacheManager&);
 
+  void TypedMessageAddtoCache(const protobuf::Message& message);
+  void TypedMessageHandleGetFromCache(protobuf::Message& message);
+  bool TypedMessageIsInCache(const protobuf::Message& message);
+
   const NodeId kNodeId_;
   NetworkUtils& network_;
-  MessageReceivedFunctor message_received_functor_;
-  StoreCacheDataFunctor store_cache_data_;
+  MessageAndCachingFunctors message_and_caching_functors_;
+  TypedMessageAndCachingFunctor typed_message_and_caching_functors_;
 };
 
 }  // namespace routing

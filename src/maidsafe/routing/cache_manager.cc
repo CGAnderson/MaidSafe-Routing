@@ -28,29 +28,88 @@ namespace routing {
 CacheManager::CacheManager(const NodeId& node_id, NetworkUtils &network)
     : kNodeId_(node_id),
       network_(network),
-      message_received_functor_(),
-      store_cache_data_() {}
+      message_and_caching_functors_(),
+      typed_message_and_caching_functors_() {}
 
-void CacheManager::InitialiseFunctors(MessageReceivedFunctor message_received_functor,
-                                      StoreCacheDataFunctor store_cache_data) {
-  assert(message_received_functor);
-  assert(store_cache_data);
-  message_received_functor_ = message_received_functor;
-  store_cache_data_ = store_cache_data;
+void CacheManager::InitialiseFunctors(MessageAndCachingFunctors message_and_caching_functors) {
+  assert(message_and_caching_functors.message_received);
+  assert(message_and_caching_functors.have_cache_data);
+  assert(message_and_caching_functors.store_cache_data);
+  message_and_caching_functors_ = message_and_caching_functors;
 }
+
+void CacheManager::InitialiseFunctors(TypedMessageAndCachingFunctor
+    typed_message_and_caching_functors) {
+  assert(!message_and_caching_functors_.message_received);
+  assert(!message_and_caching_functors_.have_cache_data);
+  assert(!message_and_caching_functors_.store_cache_data);
+  typed_message_and_caching_functors_ = typed_message_and_caching_functors;
+}
+
 
 void CacheManager::AddToCache(const protobuf::Message& message) {
   assert(!message.request());
-  if (store_cache_data_)
-    store_cache_data_(message.data(0));
+  if (message_and_caching_functors_.store_cache_data) {
+    message_and_caching_functors_.store_cache_data(message.data(0));
+  } else {
+    TypedMessageAddtoCache(message);
+  }
 }
+
+void CacheManager::TypedMessageAddtoCache(const protobuf::Message& message) {
+  if ((!message.has_group_source() && !message.has_group_destination()) &&
+          typed_message_and_caching_functors_.single_to_single.put_cache_data) {
+    typed_message_and_caching_functors_.single_to_single.put_cache_data(
+        CreateSingleToSingleMessage(message));
+  } else if ((!message.has_group_source() && message.has_group_destination()) &&
+                typed_message_and_caching_functors_.single_to_group.put_cache_data) {
+    typed_message_and_caching_functors_.single_to_group.put_cache_data(
+        CreateSingleToGroupMessage(message));
+  } else if ((message.has_group_source() && !message.has_group_destination()) &&
+                typed_message_and_caching_functors_.group_to_single.put_cache_data) {
+    typed_message_and_caching_functors_.group_to_single.put_cache_data(
+        CreateGroupToSingleMessage(message));
+  } else if ((message.has_group_source() && message.has_group_destination()) &&
+                typed_message_and_caching_functors_.group_to_group.put_cache_data) {
+    typed_message_and_caching_functors_.group_to_group.put_cache_data(
+        CreateGroupToGroupMessage(message));
+  }
+}
+
+bool CacheManager::IsInCache(const protobuf::Message& message) {
+// TODO(Mahmoud): Check the parameter is valid.
+  if (message_and_caching_functors_.have_cache_data)
+    return message_and_caching_functors_.have_cache_data(message.data(0));
+  return TypedMessageIsInCache(message);
+}
+
+bool CacheManager::TypedMessageIsInCache(const protobuf::Message& message) {
+  if ((!message.has_group_source() && !message.has_group_destination()) &&
+      typed_message_and_caching_functors_.single_to_single.get_cache_data) {
+  return typed_message_and_caching_functors_.single_to_single.get_cache_data(
+             CreateSingleToSingleMessage(message));
+  } else if ((!message.has_group_source() && message.has_group_destination()) &&
+              typed_message_and_caching_functors_.single_to_group.get_cache_data) {
+    return typed_message_and_caching_functors_.single_to_group.get_cache_data(
+               CreateSingleToGroupMessage(message));
+  } else if ((message.has_group_source() && !message.has_group_destination()) &&
+                typed_message_and_caching_functors_.group_to_single.get_cache_data) {
+    return typed_message_and_caching_functors_.group_to_single.get_cache_data(
+               CreateGroupToSingleMessage(message));
+  } else if ((message.has_group_source() && message.has_group_destination()) &&
+                typed_message_and_caching_functors_.group_to_group.get_cache_data) {
+    return typed_message_and_caching_functors_.group_to_group.get_cache_data(
+               CreateGroupToGroupMessage(message));
+  }
+  return false;
+}
+
 // FIXME(Prakash)
 void CacheManager::HandleGetFromCache(protobuf::Message& message) {
   assert(IsRequest(message));
   assert(IsCacheableGet(message));
   assert(kNodeId_.string() != message.source_id());
-  assert(kNodeId_.string() != message.destination_id());
-  if (message_received_functor_) {
+  if (message_and_caching_functors_.message_received) {
     if (IsRequest(message)) {
       LOG(kVerbose) << " [" << DebugId(kNodeId_) << "] rcvd : "
                     << MessageTypeString(message) << " from "
@@ -91,9 +150,31 @@ void CacheManager::HandleGetFromCache(protobuf::Message& message) {
           network_.SendToClosestNode(message_out);
       };
 
-      if (message_received_functor_)
-        message_received_functor_(message.data(0), true, response_functor);
+      if (message_and_caching_functors_.message_received)
+        message_and_caching_functors_.message_received(message.data(0), true, response_functor);
     }
+  } else {
+    TypedMessageHandleGetFromCache(message);
+  }
+}
+
+void CacheManager::TypedMessageHandleGetFromCache(protobuf::Message& message) {
+  if ((!message.has_group_source() && !message.has_group_destination()) &&
+      typed_message_and_caching_functors_.single_to_single.message_received) {
+   typed_message_and_caching_functors_.single_to_single.message_received(
+       CreateSingleToSingleMessage(message));
+  } else if ((!message.has_group_source() && message.has_group_destination()) &&
+              typed_message_and_caching_functors_.single_to_group.message_received) {
+    typed_message_and_caching_functors_.single_to_group.message_received(
+        CreateSingleToGroupMessage(message));
+  } else if ((message.has_group_source() && !message.has_group_destination()) &&
+                typed_message_and_caching_functors_.group_to_single.message_received) {
+    typed_message_and_caching_functors_.group_to_single.message_received(
+        CreateGroupToSingleMessage(message));
+  } else if ((message.has_group_source() && message.has_group_destination()) &&
+                typed_message_and_caching_functors_.group_to_group.message_received) {
+    typed_message_and_caching_functors_.group_to_group.message_received(
+        CreateGroupToGroupMessage(message));
   }
 }
 

@@ -91,7 +91,7 @@ class MessageHandler {
   MessageHandler(const MessageHandler&);
   MessageHandler(const MessageHandler&&);
   MessageHandler& operator=(const MessageHandler&);
-  bool CheckCacheData(protobuf::Message& message);
+  bool CheckCacheData(const protobuf::Message& message);
   void HandleRoutingMessage(protobuf::Message& message);
   void HandleNodeLevelMessageForThisNode(protobuf::Message& message);
   void HandleMessageForThisNode(protobuf::Message& message);

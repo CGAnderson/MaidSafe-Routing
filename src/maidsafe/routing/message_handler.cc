@@ -35,40 +35,6 @@ namespace maidsafe {
 
 namespace routing {
 
-namespace {
-
-SingleToSingleMessage CreateSingleToSingleMessage(const protobuf::Message& proto_message) {
-  return SingleToSingleMessage(proto_message.data(0),
-                               SingleSource(NodeId(proto_message.source_id())),
-                               SingleId(NodeId(proto_message.destination_id())),
-                               static_cast<Cacheable>(proto_message.cacheable()));
-}
-
-SingleToGroupMessage CreateSingleToGroupMessage(const protobuf::Message& proto_message) {
-  return SingleToGroupMessage(proto_message.data(0),
-                              SingleSource(NodeId(proto_message.source_id())),
-                              GroupId(NodeId(proto_message.destination_id())),
-                              static_cast<Cacheable>(proto_message.cacheable()));
-}
-
-GroupToSingleMessage CreateGroupToSingleMessage(const protobuf::Message& proto_message) {
-  return GroupToSingleMessage(proto_message.data(0),
-                              GroupSource(GroupId(NodeId(proto_message.group_source())),
-                                          SingleId(NodeId(proto_message.source_id()))),
-                              SingleId(NodeId(proto_message.destination_id())),
-                              static_cast<Cacheable>(proto_message.cacheable()));
-}
-
-GroupToGroupMessage CreateGroupToGroupMessage(const protobuf::Message& proto_message) {
-  return GroupToGroupMessage(proto_message.data(0),
-                             GroupSource(GroupId(NodeId(proto_message.group_source())),
-                                         SingleId(NodeId(proto_message.source_id()))),
-                             GroupId(NodeId(proto_message.destination_id())),
-                             static_cast<Cacheable>(proto_message.cacheable()));
-}
-
-}  //  unnamed namespace
-
 MessageHandler::MessageHandler(RoutingTable& routing_table,
                                ClientRoutingTable& client_routing_table,
                                NetworkUtils& network,
@@ -661,7 +627,7 @@ void MessageHandler::InvokeTypedMessageReceivedFunctor(const protobuf::Message& 
 
 void MessageHandler::set_message_and_caching_functor(MessageAndCachingFunctors functors) {
   message_received_functor_ = functors.message_received;
-  // Initialise caching functors here
+  cache_manager_->InitialiseFunctors(functors);
 }
 
 void MessageHandler::set_typed_message_and_caching_functor(TypedMessageAndCachingFunctor functors) {
@@ -669,7 +635,7 @@ void MessageHandler::set_typed_message_and_caching_functor(TypedMessageAndCachin
   typed_message_received_functors_.single_to_group = functors.single_to_group.message_received;
   typed_message_received_functors_.group_to_single = functors.group_to_single.message_received;
   typed_message_received_functors_.group_to_group = functors.group_to_group.message_received;
-  // Initialise caching functors here
+  cache_manager_->InitialiseFunctors(functors);
 }
 
 void MessageHandler::set_request_public_key_functor(
@@ -690,10 +656,15 @@ void MessageHandler::StoreCacheCopy(const protobuf::Message& message) {
   cache_manager_->AddToCache(message);
 }
 
+bool MessageHandler::CheckCacheData(const protobuf::Message& message) {
+  assert(IsRequest(message));
+  return cache_manager_->IsInCache(message);
+}
+
 bool MessageHandler::IsValidCacheableGet(const protobuf::Message& message) {
   // TODO(Prakash): need to differentiate between typed and un typed api
   return (IsCacheableGet(message) && IsNodeLevelMessage(message) && Parameters::caching &&
-          !routing_table_.client_mode());
+          !routing_table_.client_mode() && CheckCacheData(message));
 }
 
 bool MessageHandler::IsValidCacheablePut(const protobuf::Message& message) {

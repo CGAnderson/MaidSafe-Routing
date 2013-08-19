@@ -219,7 +219,7 @@ void Routing::Impl::Send(const T& message) {  // FIXME(Fix caching)
 
 template<typename T>
 void Routing::Impl::AddGroupSourceRelatedFields(const T& message, protobuf::Message& proto_message,
-                                 std::true_type) {
+                                                std::true_type) {
   proto_message.set_group_source(message.sender.group_id->string());
   proto_message.set_direct(false);
 }

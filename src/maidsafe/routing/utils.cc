@@ -187,12 +187,12 @@ bool IsDirect(const protobuf::Message& message) {
 
 bool IsCacheableGet(const protobuf::Message& message) {
   return (message.has_cacheable() &&
-           (static_cast<Cacheable>(message.cacheable()) == Cacheable::kGet));
+          (static_cast<Cacheable>(message.cacheable()) == Cacheable::kGet));
 }
 
 bool IsCacheablePut(const protobuf::Message& message) {
   return (message.has_cacheable() &&
-           (static_cast<Cacheable>(message.cacheable()) == Cacheable::kPut));
+          (static_cast<Cacheable>(message.cacheable()) == Cacheable::kPut));
 }
 
 bool CheckId(const std::string& id_to_test) {
@@ -401,6 +401,36 @@ std::string SerializeNodeIdList(const std::vector<NodeId> &node_list) {
     entry->set_node_id(node_id.string());
   }
   return node_list_msg.SerializeAsString();
+}
+
+SingleToSingleMessage CreateSingleToSingleMessage(const protobuf::Message& proto_message) {
+  return SingleToSingleMessage(proto_message.data(0),
+                               SingleSource(NodeId(proto_message.source_id())),
+                               SingleId(NodeId(proto_message.destination_id())),
+                               static_cast<Cacheable>(proto_message.cacheable()));
+}
+
+SingleToGroupMessage CreateSingleToGroupMessage(const protobuf::Message& proto_message) {
+  return SingleToGroupMessage(proto_message.data(0),
+                              SingleSource(NodeId(proto_message.source_id())),
+                              GroupId(NodeId(proto_message.destination_id())),
+                              static_cast<Cacheable>(proto_message.cacheable()));
+}
+
+GroupToSingleMessage CreateGroupToSingleMessage(const protobuf::Message& proto_message) {
+  return GroupToSingleMessage(proto_message.data(0),
+                              GroupSource(GroupId(NodeId(proto_message.group_source())),
+                                          SingleId(NodeId(proto_message.source_id()))),
+                              SingleId(NodeId(proto_message.destination_id())),
+                              static_cast<Cacheable>(proto_message.cacheable()));
+}
+
+GroupToGroupMessage CreateGroupToGroupMessage(const protobuf::Message& proto_message) {
+  return GroupToGroupMessage(proto_message.data(0),
+                             GroupSource(GroupId(NodeId(proto_message.group_source())),
+                                         SingleId(NodeId(proto_message.source_id()))),
+                             GroupId(NodeId(proto_message.destination_id())),
+                             static_cast<Cacheable>(proto_message.cacheable()));
 }
 
 }  // namespace routing
